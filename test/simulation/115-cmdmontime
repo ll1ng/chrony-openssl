@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+. ./test.common
+
+test_start "cmdmon timestamps"
+
+# The following tests need 64-bit time_t
+check_config_h 'HAVE_LONG_TIME_T 1' || test_skip
+check_config_h 'FEAT_CMDMON 1' || test_skip
+
+limit=2
+client_server_options="noselect"
+client_conf="local stratum 1"
+chronyc_start="1.5"
+chronyc_conf="tracking"
+
+for year in `seq 1850 100 2300`; do
+	export CLKNETSIM_START_DATE=$(date -d "Jan 01 00:00:05 $year UTC" +'%s')
+	run_test || test_fail
+	check_chronyd_exit || test_fail
+	check_chronyc_output "^.*Ref time \(UTC\).*Jan 01 00:00:0. $year.*$" || test_fail
+done
+
+test_pass
