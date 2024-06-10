@@ -301,6 +301,8 @@ NNC_PrepareForAuth(NNC_Instance inst)
      previous request */
   UTI_GetRandomBytes(inst->uniq_id, sizeof (inst->uniq_id));
   UTI_GetRandomBytes(inst->nonce, sizeof (inst->nonce));
+  // memset(inst->uniq_id, 1, sizeof (inst->uniq_id));
+  // memset(inst->nonce, 1, sizeof (inst->nonce));
 
   /* Get new cookies if there are not any, or they are no longer usable */
   if (!check_cookies(inst)) {
@@ -502,7 +504,8 @@ NNC_CheckResponseAuth(NNC_Instance inst, NTP_Packet *packet,
   if (!has_valid_uniq_id || !has_valid_auth) {
     if (has_valid_uniq_id && packet->stratum == NTP_INVALID_STRATUM &&
         ntohl(packet->reference_id) == NTP_KOD_NTS_NAK) {
-      DEBUG_LOG("NTS NAK");
+      DEBUG_LOG("\e[31;49;1mNTS NAK \e[39;49;0m");
+      LOG(LOGS_INFO,"\e[31;49;1mNTS NAK \e[39;49;0m");
       inst->nak_response = 1;
       return 0;
     }
@@ -551,7 +554,7 @@ save_cookies(NNC_Instance inst)
   double context_time;
   FILE *f;
   int i;
-
+  LOG(LOGS_INFO,"\e[32;49;1minst->num_cookies=%d\e[39;49;0m",inst->num_cookies);
   if (inst->num_cookies < 1 || !UTI_IsIPReal(&inst->nts_address.ip_addr))
     return;
 

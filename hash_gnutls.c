@@ -28,8 +28,8 @@
 
 #include "sysincl.h"
 
-#include <gnutls/crypto.h>
-
+#include <gnutls/crypto.h>123
+// not compile
 #include "hash.h"
 #include "logging.h"
 

@@ -97,7 +97,7 @@ static int initialised = 0;
 
 /* Array of NKSN instances */
 static ARR_Instance sessions;
-static NKSN_Credentials server_credentials;
+// static NKSN_Credentials server_credentials;
 
 /* ================================================== */
 
@@ -106,14 +106,14 @@ static int handle_message(void *arg);
 /* ================================================== */
 
 static int
-handle_client(int sock_fd, IPSockAddr *addr)
+handle_client(int client_fd, IPSockAddr *addr)
 {
   NKSN_Instance inst, *instp;
   int i;
 
   /* Leave at least half of the descriptors which can handled by select()
      to other use */
-  if (sock_fd > FD_SETSIZE / 2) {
+  if (client_fd > FD_SETSIZE / 2) {
     DEBUG_LOG("Rejected connection from %s (%s)",
               UTI_IPSockAddrToString(addr), "too many descriptors");
     return 0;
@@ -139,10 +139,9 @@ handle_client(int sock_fd, IPSockAddr *addr)
     return 0;
   }
 
-  assert(server_credentials);
+  // assert(server_credentials);
 
-  if (!NKSN_StartSession(inst, sock_fd, UTI_IPSockAddrToString(addr),
-                         server_credentials, SERVER_TIMEOUT))
+  if (!NKSN_StartSession_s(inst, client_fd, UTI_IPSockAddrToString(addr), SERVER_TIMEOUT))
     return 0;
 
   return 1;
@@ -225,17 +224,17 @@ accept_connection(int listening_fd, int event, void *arg)
 {
   SCK_Message message;
   IPSockAddr addr;
-  int log_index, sock_fd;
+  int log_index, client_fd;
   struct timespec now;
 
-  sock_fd = SCK_AcceptConnection(listening_fd, &addr);
-  if (sock_fd < 0)
+  client_fd = SCK_AcceptConnection(listening_fd, &addr);
+  if (client_fd < 0)
     return;
 
   if (!NCR_CheckAccessRestriction(&addr.ip_addr)) {
     DEBUG_LOG("Rejected connection from %s (%s)",
               UTI_IPSockAddrToString(&addr), "access denied");
-    SCK_CloseSocket(sock_fd);
+    SCK_CloseSocket(client_fd);
     return;
   }
 
@@ -245,7 +244,7 @@ accept_connection(int listening_fd, int event, void *arg)
   if (log_index >= 0 && CLG_LimitServiceRate(CLG_NTSKE, log_index)) {
     DEBUG_LOG("Rejected connection from %s (%s)",
               UTI_IPSockAddrToString(&addr), "rate limit");
-    SCK_CloseSocket(sock_fd);
+    SCK_CloseSocket(client_fd);
     return;
   }
 
@@ -267,7 +266,7 @@ accept_connection(int listening_fd, int event, void *arg)
     SCK_InitMessage(&message, SCK_ADDR_UNSPEC);
     message.data = &req;
     message.length = sizeof (req);
-    message.descriptor = sock_fd;
+    message.descriptor = client_fd;
 
     errno = 0;
     if (!SCK_SendMessage(helper_sock_fd, &message, SCK_FLAG_MSG_DESCRIPTOR)) {
@@ -275,19 +274,19 @@ accept_connection(int listening_fd, int event, void *arg)
          the socket (e.g. due to a fatal error) */
       if (errno == EPIPE)
         LOG_FATAL("NTS-KE helpers failed");
-      SCK_CloseSocket(sock_fd);
+      SCK_CloseSocket(client_fd);
       return;
     }
 
-    SCK_CloseSocket(sock_fd);
+    SCK_CloseSocket(client_fd);
   } else {
-    if (!handle_client(sock_fd, &addr)) {
-      SCK_CloseSocket(sock_fd);
+    if (!handle_client(client_fd, &addr)) {
+      SCK_CloseSocket(client_fd);
       return;
     }
   }
 
-  DEBUG_LOG("Accepted connection from %s fd=%d", UTI_IPSockAddrToString(&addr), sock_fd);
+  DEBUG_LOG("Accepted connection from %s fd=%d", UTI_IPSockAddrToString(&addr), client_fd);
 }
 
 /* ================================================== */
@@ -296,7 +295,7 @@ static int
 open_socket(int family)
 {
   IPSockAddr local_addr;
-  int backlog, sock_fd;
+  int backlog, server_fd;
   char *iface;
 
   if (!SCK_IsIpFamilyEnabled(family))
@@ -306,8 +305,8 @@ open_socket(int family)
   local_addr.port = CNF_GetNtsServerPort();
   iface = CNF_GetBindNtpInterface();
 
-  sock_fd = SCK_OpenTcpSocket(NULL, &local_addr, iface, 0);
-  if (sock_fd < 0) {
+  server_fd = SCK_OpenTcpSocket(NULL, &local_addr, iface, 0);
+  if (server_fd < 0) {
     LOG(LOGS_ERR, "Could not open NTS-KE socket on %s", UTI_IPSockAddrToString(&local_addr));
     return INVALID_SOCK_FD;
   }
@@ -316,14 +315,14 @@ open_socket(int family)
      number of concurrent sessions */
   backlog = MAX(CNF_GetNtsServerProcesses(), 1) * CNF_GetNtsServerConnections();
 
-  if (!SCK_ListenOnSocket(sock_fd, backlog)) {
-    SCK_CloseSocket(sock_fd);
+  if (!SCK_ListenOnSocket(server_fd, backlog)) {
+    SCK_CloseSocket(server_fd);
     return INVALID_SOCK_FD;
   }
 
-  SCH_AddFileHandler(sock_fd, SCH_FILE_INPUT, accept_connection, NULL);
+  SCH_AddFileHandler(server_fd, SCH_FILE_INPUT, accept_connection, NULL);
 
-  return sock_fd;
+  return server_fd;
 }
 
 /* ================================================== */
@@ -512,8 +511,10 @@ generate_key(int index)
     assert(0);
 
   UTI_GetRandomBytesUrandom(key->key, key_length);
+  // memset(key->key, 1, key_length);
   memset(key->key + key_length, 0, sizeof (key->key) - key_length);
   UTI_GetRandomBytes(&key->id, sizeof (key->id));
+  // memset(&key->id, 1, sizeof (key->id));
 
   /* Encode the index in the lowest bits of the ID */
   key->id &= -1U << KEY_ID_INDEX_BITS;
@@ -703,7 +704,7 @@ run_helper(uid_t uid, gid_t gid, int scfilter_level)
   if (scfilter_level != 0)
     SYS_EnableSystemCallFilter(scfilter_level, SYS_NTSKE_HELPER);
 
-  SCH_MainLoop();
+  SCH_MainLoop();//stuck
 
   DEBUG_LOG("Helper exiting");
 
@@ -792,11 +793,11 @@ NKS_Initialise(void)
     return;
 
   if (helper_sock_fd == INVALID_SOCK_FD) {
-    server_credentials = NKSN_CreateServerCertCredentials(certs, keys, n_certs_keys);
-    if (!server_credentials)
-      return;
-  } else {
-    server_credentials = NULL;
+    NKSN_CreateServerCertCredentials(certs, keys, n_certs_keys);
+  //   if (!server_credentials)
+  //     return;
+  // } else {
+  //   server_credentials = NULL;
   }
 
   sessions = ARR_CreateInstance(sizeof (NKSN_Instance));
@@ -812,7 +813,7 @@ NKS_Initialise(void)
 
   current_server_key = MAX_SERVER_KEYS - 1;
 
-  if (!is_helper) {
+  if (!is_helper) {//not exe
     server_sock_fd4 = open_socket(IPADDR_INET4);
     server_sock_fd6 = open_socket(IPADDR_INET6);
 
@@ -872,8 +873,8 @@ NKS_Finalise(void)
   }
   ARR_DestroyInstance(sessions);
 
-  if (server_credentials)
-    NKSN_DestroyCertCredentials(server_credentials);
+  // if (server_credentials)
+  NKSN_DestroyCertCredentials();
 }
 
 /* ================================================== */
@@ -934,6 +935,7 @@ NKS_GenerateCookie(NKE_Context *context, NKE_Cookie *cookie)
   if (key->nonce_length > sizeof (cookie->cookie) - sizeof (*header))
     assert(0);
   UTI_GetRandomBytes(nonce, key->nonce_length);
+  // memset(nonce, 1, key->nonce_length);
 
   plaintext_length = context->c2s.length + context->s2c.length;
   assert(plaintext_length <= sizeof (plaintext));
@@ -945,6 +947,7 @@ NKS_GenerateCookie(NKE_Context *context, NKE_Cookie *cookie)
   assert(cookie->length <= sizeof (cookie->cookie));
   ciphertext = cookie->cookie + sizeof (*header) + key->nonce_length;
 
+  hexdump("plaintext=",plaintext, plaintext_length);
   if (!SIV_Encrypt(key->siv, nonce, key->nonce_length,
                    "", 0,
                    plaintext, plaintext_length,
@@ -1002,12 +1005,13 @@ NKS_DecodeCookie(NKE_Cookie *cookie, NKE_Context *context)
     DEBUG_LOG("Invalid cookie length");
     return 0;
   }
-
+  // hexdump("Decrypting...\nnonce=",nonce,key->nonce_length);
   if (!SIV_Decrypt(key->siv, nonce, key->nonce_length,
                    "", 0,
                    ciphertext, ciphertext_length,
                    plaintext, plaintext_length)) {
     DEBUG_LOG("Could not decrypt cookie");
+    LOG(LOGS_INFO,"\e[31;49;1mCould not decrypt cookie\e[39;49;0m");
     return 0;
   }
 

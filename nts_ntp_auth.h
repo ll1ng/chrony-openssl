@@ -41,3 +41,4 @@ extern int NNA_DecryptAuthEF(NTP_Packet *packet, NTP_PacketInfo *info, SIV_Insta
                              int *plaintext_length);
 
 #endif
+extern void hexdump(const char *pre, void *buf, unsigned int len);

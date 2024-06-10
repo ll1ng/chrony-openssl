@@ -59,8 +59,8 @@ struct NKC_Instance_Record {
 
 /* ================================================== */
 
-static NKSN_Credentials default_credentials = NULL;
-static int default_credentials_refs = 0;
+// static NKSN_Credentials default_credentials = NULL;
+// static int default_credentials_refs = 0;
 
 /* ================================================== */
 
@@ -305,6 +305,7 @@ NKC_CreateInstance(IPSockAddr *address, const char *name, uint32_t cert_set)
 
   inst->address = *address;
   inst->name = Strdup(name);
+  LOG(LOGS_INFO,"creating client ssl...");
   inst->session = NKSN_CreateInstance(0, inst->name, handle_message, inst);
   inst->resolving_name = 0;
   inst->destroying = 0;
@@ -314,18 +315,18 @@ NKC_CreateInstance(IPSockAddr *address, const char *name, uint32_t cert_set)
 
   /* Share the credentials among clients using the default set of trusted
      certificates, which likely contains most certificates */
-  if (cert_set == 0) {
-    if (!default_credentials)
-      default_credentials = NKSN_CreateClientCertCredentials(trusted_certs, certs_ids,
-                                                             n_certs, cert_set);
-    inst->credentials = default_credentials;
-    if (default_credentials)
-      default_credentials_refs++;
-  } else {
-    inst->credentials = NKSN_CreateClientCertCredentials(trusted_certs, certs_ids,
-                                                         n_certs, cert_set);
-  }
-
+  // if (cert_set == 0) {
+  //   if (!default_credentials)
+  //     default_credentials = NKSN_CreateClientCertCredentials(trusted_certs, certs_ids,
+  //                                                            n_certs, cert_set);
+  //   inst->credentials = default_credentials;
+  //   if (default_credentials)
+  //     default_credentials_refs++;
+  // } else {
+  //   inst->credentials = NKSN_CreateClientCertCredentials(trusted_certs, certs_ids,
+  //                                                        n_certs, cert_set);
+  // }
+  NKSN_CreateClientCertCredentials(trusted_certs, certs_ids, n_certs, cert_set);
   return inst;
 }
 
@@ -338,17 +339,17 @@ NKC_DestroyInstance(NKC_Instance inst)
 
   Free(inst->name);
 
-  if (inst->credentials) {
-    if (inst->credentials == default_credentials) {
-      default_credentials_refs--;
-      if (default_credentials_refs <= 0) {
-        NKSN_DestroyCertCredentials(default_credentials);
-        default_credentials = NULL;
-      }
-    } else {
+  // if (inst->credentials) {
+  //   if (inst->credentials == default_credentials) {
+  //     default_credentials_refs--;
+  //     if (default_credentials_refs <= 0) {
+  //       NKSN_DestroyCertCredentials(default_credentials);
+  //       default_credentials = NULL;
+  //     }
+  //   } else {
       NKSN_DestroyCertCredentials(inst->credentials);
-    }
-  }
+  //   }
+  // }
 
   /* If the asynchronous resolver is running, let the handler free
      the instance later */
@@ -373,7 +374,7 @@ NKC_Start(NKC_Instance inst)
 
   inst->got_response = 0;
 
-  if (!inst->credentials) {
+  if (!inst) {
     DEBUG_LOG("Missing client credentials");
     return 0;
   }
@@ -402,7 +403,7 @@ NKC_Start(NKC_Instance inst)
   }
 
   /* Start an NTS-KE session */
-  if (!NKSN_StartSession(inst->session, sock_fd, label, inst->credentials, CLIENT_TIMEOUT)) {
+  if (!NKSN_StartSession_c(inst->session, sock_fd, label, CLIENT_TIMEOUT)) {
     SCK_CloseSocket(sock_fd);
     return 0;
   }

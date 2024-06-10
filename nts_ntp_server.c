@@ -231,7 +231,8 @@ NNS_CheckRequestAuth(NTP_Packet *packet, NTP_PacketInfo *info, uint32_t *kod)
      there (when the TX timestamp is already set) */
 
   UTI_GetRandomBytes(server->nonce, sizeof (server->nonce));
-
+  
+  // memset(server->nonce, 0, sizeof (server->nonce));
   assert(sizeof (server->cookies) / sizeof (server->cookies[0]) == NTS_MAX_COOKIES);
   for (i = 0; i < NTS_MAX_COOKIES && i < requested_cookies; i++)
     if (!NKS_GenerateCookie(&context, &server->cookies[i]))

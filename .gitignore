@@ -1,4 +1,11 @@
-COPYING
-FAQ
-version.txt
-configure
+*.o
+chronyc
+chronyd
+config.h
+.deps/
+
+.vscode/
+
+.gdb_history
+
+.gitattributes

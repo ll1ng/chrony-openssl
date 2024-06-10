@@ -1601,9 +1601,10 @@ SCK_ShutdownConnection(int sock_fd)
 {
   if (shutdown(sock_fd, SHUT_RDWR) < 0) {
     DEBUG_LOG("shutdown() failed : %s", strerror(errno));
+    LOG(LOGS_INFO,"\e[31;49;1mshutdown failed fd=%d\e[39;49;0m",sock_fd);
     return 0;
   }
-
+LOG(LOGS_INFO,"\e[31;49;1mshutdown fd=%d successfully\e[39;49;0m",sock_fd);
   return 1;
 }
 

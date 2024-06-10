@@ -177,9 +177,12 @@ NNA_DecryptAuthEF(NTP_Packet *packet, NTP_PacketInfo *info, SIV_Instance siv, in
   *plaintext_length = ciphertext_length - siv_tag_length;
   assert(*plaintext_length >= 0);
 
+  hexdump("siv decrypting...\nnonce=",nonce,nonce_length);
+  printf("ef_start=%d\n",ef_start);
   if (!SIV_Decrypt(siv, nonce, nonce_length, packet, ef_start,
                    ciphertext, ciphertext_length, plaintext, *plaintext_length)) {
-    DEBUG_LOG("SIV decrypt failed");
+    DEBUG_LOG("\e[31;49;1mSIV decrypt failed\e[39;49;0m");
+    LOG(LOGS_INFO,"\e[31;49;1mSIV decrypt failed\e[39;49;0m");
     return 0;
   }
 
