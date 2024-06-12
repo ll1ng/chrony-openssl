@@ -1,16 +1,18 @@
-set args -F -1 -f ./chronys_gm.conf -d
+set args -F -1 -f ./chronys.conf -d
 #set args -F -1 -x -f ./chronyc.conf -d
 #set args -F -1 -f ./chronys.conf -d
-#set follow-fork-mode child
-set follow-fork-mode parent
+set follow-fork-mode child
+#set follow-fork-mode parent
 #b SSL_do_handshake
 add-symbol-file /home/ling/temp/Tongsuo-8.4.0/libcrypto.so.3
 add-symbol-file /home/ling/temp/Tongsuo-8.4.0/libssl.so.3
 #b /home/ling/temp/Tongsuo-8.4.0/ssl/statem/statem.c:908
 #b /home/ling/temp/Tongsuo-8.4.0/ssl/record/rec_layer_s3.c:1195
-b SSL_do_handshake
-b add_key_share
-b tls_construct_ctos_key_share
+#b SSL_do_handshake
+#b add_key_share
+#b tls_construct_ctos_key_share
+#b /mnt/d/chrony-4.5/nts_ke_session.c:970
+b /mnt/d/chrony-4.5/nts_ke_session.c:1254
 #b /home/ling/temp/Tongsuo-8.4.0/ssl/statem/statem.c:363
 #b /home/ling/temp/Tongsuo-8.4.0/ssl/statem/statem.c:471
 #b tls_get_message_header

@@ -899,16 +899,17 @@ init_opentls(void)
   //   gnutls_global_deinit();    
   // }
 
-  ssl_ctx_s = SSL_CTX_new(TLS_server_method());
+  ssl_ctx_s = SSL_CTX_new(NTLS_server_method());
   if (ssl_ctx_s == NULL)
     LOG_FATAL("Error creating SSL server context");
-  SSL_CTX_enable_sm_tls13_strict(ssl_ctx_s);  
+  SSL_CTX_enable_ntls(ssl_ctx_s);  
   SSL_CTX_set_alpn_select_cb(ssl_ctx_s,alpn_cb,&alpn_ctx);//1
 
-  ssl_ctx_c = SSL_CTX_new(TLS_client_method());
+  ssl_ctx_c = SSL_CTX_new(NTLS_client_method());
   if (ssl_ctx_c == NULL)
     LOG_FATAL("Error creating SSL client context");
-  
+  SSL_CTX_set_verify(ssl_ctx_c, SSL_VERIFY_NONE, NULL);
+  SSL_CTX_enable_ntls(ssl_ctx_c); 
   SSL_CTX_set_next_proto_select_cb(ssl_ctx_c, next_proto_cb, &next_proto);
 
   if((r=SSL_CTX_set_alpn_protos(ssl_ctx_c, alpn_name,sizeof(alpn_name)))!=0)
@@ -916,12 +917,13 @@ init_opentls(void)
     LOG(LOGS_INFO,"set client error!%d",r);
   }
   // if comment, can work remotely and locally; uncomment work only locally?
-  if(SSL_CTX_set_ciphersuites(ssl_ctx_c, "TLS_SM4_GCM_SM3")!=1){
-    LOG(LOGS_INFO,"\e[32;49;1m set TLS_SM4_GCM_SM3 error!%d\n\e[39;49;0m",r);
-    return 0;
-  }
-  SSL_CTX_set1_curves_list(ssl_ctx_c, "SM2:X25519:prime256v1");
-  // SSL_CTX_set1_curves_list(ssl_ctx_c, "prime256v1:X25519:SM2");
+  // if(SSL_CTX_set_ciphersuites(ssl_ctx_c, "TLS_SM4_GCM_SM3")!=1){
+  //   LOG(LOGS_INFO,"\e[32;49;1m set TLS_SM4_GCM_SM3 error!%d\n\e[39;49;0m",r);
+  //   return 0;
+  // }
+  // if server does not support gm, ask client try again
+  // SSL_CTX_set1_curves_list(ssl_ctx_c, "SM2:X25519:prime256v1");
+
   /* Use our clock instead of the system clock in certificate verification */
   // gnutls_global_set_time_function(get_time);
 
@@ -965,29 +967,42 @@ create_credentials(const char **certs, const char **keys, int n_certs_keys,
   if (!init_opentls())
     return;
 
+  if (!SSL_CTX_use_sign_certificate_file(ssl_ctx_s, "",// certificate path
+                                           SSL_FILETYPE_PEM)
+        || !SSL_CTX_use_sign_PrivateKey_file(ssl_ctx_s, "",
+                                             SSL_FILETYPE_PEM)
+	    || !SSL_CTX_use_enc_certificate_file(ssl_ctx_s, "",
+                                              SSL_FILETYPE_PEM)
+	    || !SSL_CTX_use_enc_PrivateKey_file(ssl_ctx_s, "",
+                                             SSL_FILETYPE_PEM)) {
+        LOG(LOGS_INFO,"\e[31;49;1m cert or key error!\e[39;49;0m");
+        exit(EXIT_FAILURE);
+    }
+
   // r = gnutls_certificate_allocate_credentials(&credentials);
   // if (r < 0)
   //   goto error;
-  if (certs && keys) {
-    if (trusted_certs || trusted_certs_ids)
-      assert(0);
+  // if (certs && keys) {
+  //   if (trusted_certs || trusted_certs_ids)
+  //     assert(0);
 
-    for (i = 0; i < n_certs_keys; i++) {
-      if (!UTI_CheckFilePermissions(keys[i], 0771))
-        ;
-      // r = gnutls_certificate_set_x509_key_file(credentials, certs[i], keys[i],
-      //                                          GNUTLS_X509_FMT_PEM);
-      if (SSL_CTX_use_certificate_file(ssl_ctx_s, certs[i], SSL_FILETYPE_PEM) <= 0)
-        // LOG_FATAL("Error loading server certificate");
-        LOG(LOGS_INFO,"Error loading server certificate");
-      if (SSL_CTX_use_PrivateKey_file(ssl_ctx_s, keys[i], SSL_FILETYPE_PEM) <= 0)
-        LOG(LOGS_INFO,"Error loading private key");
-        // LOG_FATAL("Error loading server private key");
-      // if (r < 0)
-      //   goto error;
-    }
-  } else {
-    if (certs || keys || n_certs_keys > 0);
+    // for (i = 0; i < n_certs_keys; i++) {
+    //   if (!UTI_CheckFilePermissions(keys[i], 0771))
+    //     ;
+    //   // r = gnutls_certificate_set_x509_key_file(credentials, certs[i], keys[i],
+    //   //                                          GNUTLS_X509_FMT_PEM);
+    //   if (SSL_CTX_use_certificate_file(ssl_ctx_s, certs[i], SSL_FILETYPE_PEM) <= 0)
+    //     // LOG_FATAL("Error loading server certificate");
+    //     LOG(LOGS_INFO,"Error loading server certificate");
+    //   if (SSL_CTX_use_PrivateKey_file(ssl_ctx_s, keys[i], SSL_FILETYPE_PEM) <= 0)
+    //     LOG(LOGS_INFO,"Error loading private key");
+    //     // LOG_FATAL("Error loading server private key");
+    //   // if (r < 0)
+    //   //   goto error;
+    // }
+
+  // } else {
+  //   if (certs || keys || n_certs_keys > 0);
       // assert(0);
 
     // if (trusted_cert_set == 0 && !CNF_GetNoSystemCert()) {
@@ -1015,7 +1030,7 @@ create_credentials(const char **certs, const char **keys, int n_certs_keys,
     //     DEBUG_LOG("Added %d trusted certs from %s", r, trusted_certs[i]);
     //   }
     // }
-  }
+  // }
 
   // credentials_counter++;
 
@@ -1233,6 +1248,8 @@ NKSN_GetKeys(NKSN_Instance inst, SIV_Algorithm siv, NKE_Key *c2s, NKE_Key *s2c)
     DEBUG_LOG("Invalid algorithm");
     return 0;
   }
+  // work if comment first sentence checking protocol version in 
+  // Tongsuo/ssl/ssl_lib.c:SSL_export_keying_material
   
   // memset(inst->ssl,inst->ssl->exporter_master_secret);
   // if (gnutls_prf_rfc5705(inst->tls_session,
