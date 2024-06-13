@@ -796,6 +796,7 @@ handle_event(NKSN_Instance inst, int event)
                 /* We just do busy waiting. Nothing clever */
                 continue;
             }
+            // set_input_output(inst->ssl, SSL_get_rbio(inst->ssl)?0:1);
             r = 0;
         }
     } while (r < 0);
@@ -916,11 +917,11 @@ init_opentls(void)
     LOG(LOGS_INFO,"set client error!%d",r);
   }
   // if comment, can work remotely and locally; uncomment work only locally?
-  if(SSL_CTX_set_ciphersuites(ssl_ctx_c, "TLS_SM4_GCM_SM3")!=1){
-    LOG(LOGS_INFO,"\e[32;49;1m set TLS_SM4_GCM_SM3 error!%d\n\e[39;49;0m",r);
-    return 0;
-  }
-  SSL_CTX_set1_curves_list(ssl_ctx_c, "SM2:X25519:prime256v1");
+  // if(SSL_CTX_set_ciphersuites(ssl_ctx_c, "TLS_SM4_GCM_SM3")!=1){
+  //   LOG(LOGS_INFO,"\e[32;49;1m set TLS_SM4_GCM_SM3 error!%d\n\e[39;49;0m",r);
+  //   return 0;
+  // }
+  // SSL_CTX_set1_curves_list(ssl_ctx_c, "SM2:X25519:prime256v1");
   // SSL_CTX_set1_curves_list(ssl_ctx_c, "prime256v1:X25519:SM2");
   /* Use our clock instead of the system clock in certificate verification */
   // gnutls_global_set_time_function(get_time);
